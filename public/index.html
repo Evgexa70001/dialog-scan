@@ -390,6 +390,27 @@
       };
     }
 
+    function itemStackKey(item) {
+      return cleanKey(item.name) + '\0' + String(item.price ?? '');
+    }
+
+    function stackItems(items) {
+      const map = new Map();
+      for (const item of items) {
+        const key = itemStackKey(item);
+        const prev = map.get(key);
+        if (prev) {
+          prev.count += item.count;
+          const slot = Number(item.slot) || 0;
+          const prevSlot = Number(prev.slot) || 0;
+          if (!prevSlot || (slot && slot < prevSlot)) prev.slot = item.slot;
+        } else {
+          map.set(key, { ...item });
+        }
+      }
+      return Array.from(map.values()).sort((a, b) => (Number(a.slot) || 0) - (Number(b.slot) || 0));
+    }
+
     function splitShopItems(items) {
       const sell = [];
       const buy = [];
@@ -399,9 +420,7 @@
         if (parsed.kind === 'sell') sell.push(parsed);
         else if (parsed.kind === 'buy') buy.push(parsed);
       }
-      sell.sort((a, b) => (Number(a.slot) || 0) - (Number(b.slot) || 0));
-      buy.sort((a, b) => (Number(a.slot) || 0) - (Number(b.slot) || 0));
-      return { sell, buy };
+      return { sell: stackItems(sell), buy: stackItems(buy) };
     }
 
     function timeAgo(iso) {
