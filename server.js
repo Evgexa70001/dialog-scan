@@ -34,6 +34,33 @@ function writeScans(scans) {
   fs.writeFileSync(DATA_FILE, JSON.stringify(scans, null, 2), 'utf8');
 }
 
+function shopKey(serverId, shopId) {
+  return `${Number(serverId) || 0}:${Number(shopId)}`;
+}
+
+function upsertScan(scans, scan) {
+  const key = shopKey(scan.server_id, scan.shop_id);
+  const existing = scans.find((item) => shopKey(item.server_id, item.shop_id) === key);
+  if (existing) scan.id = existing.id;
+  const rest = scans.filter((item) => shopKey(item.server_id, item.shop_id) !== key);
+  rest.unshift(scan);
+  if (rest.length > MAX_SCANS) rest.length = MAX_SCANS;
+  return { scans: rest, updated: Boolean(existing) };
+}
+
+function compactScans(scans) {
+  const latest = new Map();
+  for (const scan of scans) {
+    const key = shopKey(scan.server_id, scan.shop_id);
+    const prev = latest.get(key);
+    if (!prev || String(scan.received_at).localeCompare(String(prev.received_at)) >= 0) {
+      latest.set(key, scan);
+    }
+  }
+  return Array.from(latest.values())
+    .sort((a, b) => String(b.received_at).localeCompare(String(a.received_at)));
+}
+
 function authOk(req) {
   if (!INGEST_SECRET) return true;
   const header = String(req.get('authorization') || '');
@@ -61,10 +88,7 @@ app.get('/api/health', (_req, res) => {
 });
 
 app.get('/api/dialog-scans', (_req, res) => {
-  const scans = readScans()
-    .slice()
-    .sort((a, b) => String(b.received_at).localeCompare(String(a.received_at)))
-    .map(summary);
+  const scans = compactScans(readScans()).map(summary);
   res.json({ ok: true, items: scans });
 });
 
@@ -75,7 +99,12 @@ app.get('/api/dialog-scans/:id', (req, res) => {
 });
 
 app.post('/api/dialog-scans', (req, res) => {
+  console.log('[ingest] POST /api/dialog-scans shop_id=%s auth=%s',
+    req.body && req.body.shop_id,
+    req.get('authorization') ? 'yes' : 'no');
+
   if (!authOk(req)) {
+    console.warn('[ingest] unauthorized');
     return res.status(401).json({ ok: false, error: 'unauthorized' });
   }
 
@@ -102,16 +131,28 @@ app.post('/api/dialog-scans', (req, res) => {
     items: Array.isArray(body.items) ? body.items : [],
   };
 
-  const scans = readScans();
-  scans.unshift(scan);
-  if (scans.length > MAX_SCANS) scans.length = MAX_SCANS;
+  const { scans, updated } = upsertScan(readScans(), scan);
   writeScans(scans);
 
-  res.status(201).json({ ok: true, id: scan.id, captured: scan.captured });
+  console.log('[ingest] %s id=%s shop=%s server=%s owner=%s captured=%s',
+    updated ? 'updated' : 'created',
+    scan.id, scan.shop_id, scan.server_id, scan.owner_nickname, scan.captured);
+  res.status(updated ? 200 : 201).json({
+    ok: true,
+    id: scan.id,
+    captured: scan.captured,
+    updated,
+  });
 });
 
 app.listen(PORT, () => {
   ensureStore();
+  const raw = readScans();
+  const compact = compactScans(raw);
+  if (compact.length !== raw.length) {
+    writeScans(compact);
+    console.log('[dialog-scan-debug] compacted scans %s -> %s', raw.length, compact.length);
+  }
   console.log(`[dialog-scan-debug] listening on :${PORT}`);
   if (!INGEST_SECRET) {
     console.warn('[dialog-scan-debug] INGEST_SECRET is empty — ingest is open');
