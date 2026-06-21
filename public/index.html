@@ -241,20 +241,33 @@
       return s || null;
     }
 
-    function dialogItemName(value) {
-      let name = stripColors(value).trim();
-      const m = name.match(/^([^:]+):\s*(.+)$/);
-      if (m) {
-        const key = cleanKey(m[1]);
-        if (key === 'ПРЕДМЕТ' || key === 'НАЗВАНИЕ' || key === 'ТОВАР') {
-          name = m[2].trim();
-        }
+    const ITEM_NAME_PREFIXES = new Set([
+      'ПРЕДМЕТ', 'АКСЕССУАР', 'СКИН', 'НАШИВКА', 'ТОВАР', 'НАЗВАНИЕ',
+      'ЛЕГЕНДАРНЫЙ ПРЕДМЕТ', 'ЛЕГЕНДАРНЫЙ АКСЕССУАР', 'ЛЕГЕНДАРНАЯ ОДЕЖДА',
+      'КОЛЛЕКЦИОННЫЙ АКСЕССУАР', 'ЛЕГЕНДАРНАЯ НАШИВКА', 'ОРУЖИЕ', 'ОДЕЖДА',
+    ]);
+
+    function stripNamePrefix(name) {
+      name = stripColors(String(name ?? '')).replace(/\s+/g, ' ').trim();
+      if (!name) return name;
+      const m = name.match(/^([^:\n]{1,120}):\s*(.+)$/);
+      if (!m) return name;
+      const prefix = cleanKey(m[1]);
+      const rest = m[2].trim();
+      if (!rest) return name;
+      if (ITEM_NAME_PREFIXES.has(prefix) || /^[A-ZА-ЯЁ\s\-]+$/.test(prefix)) {
+        return rest;
       }
       return name;
     }
 
+    function dialogItemName(value) {
+      return stripNamePrefix(stripColors(value).trim());
+    }
+
     function sanitizeName(name) {
       name = stripColors(name).replace(/[\x00-\x1f\x7f]/g, ' ').replace(/\s+/g, ' ').trim();
+      name = stripNamePrefix(name);
       if (!name) return null;
       return name.slice(0, 200);
     }
@@ -314,13 +327,7 @@
         const part = trimDialog(m && m[1]);
         if (!part || part.length <= 1) continue;
         if (part.includes('Стоимость') || part.includes('Игрок')) continue;
-        if (plain.includes('Легендарный предмет') && !part.includes('Легендарный предмет')) {
-          return 'Легендарный предмет: ' + part;
-        }
-        if (plain.includes('Скин') && !/^Скин:/.test(part)) {
-          return 'Скин: ' + part;
-        }
-        return part;
+        return stripNamePrefix(part);
       }
       return null;
     }
