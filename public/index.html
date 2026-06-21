@@ -276,6 +276,23 @@
       return null;
     }
 
+    function extractTraitsFrom(text) {
+      const plain = stripColors(text).replace(/\r/g, '').replace(/^\s*\*\s*/, '');
+      if (!/характеристик/i.test(plain)) return null;
+
+      const patterns = [
+        /характеристик[\s\S]*?\sс\s+(?:предмета|аксессуара|оружия|скина|одежды|нашивки)\s+[«"']([^»"'\n]+)[»"']/i,
+        /применен[аыо]?\s+все\s+характеристик[\s\S]*?\sс\s+(?:предмета|аксессуара|оружия|скина|одежды|нашивки)\s+[«"']([^»"'\n]+)[»"']/i,
+        /характеристик[\s\S]*?\sс\s+[«"']([^»"'\n]+)[»"']/i,
+      ];
+      for (const re of patterns) {
+        const m = plain.match(re);
+        const name = sanitizeName(m && m[1]);
+        if (name) return name;
+      }
+      return null;
+    }
+
     function extractDialogName(text) {
       const plain = stripColors(text).replace(/\./g, '');
       const patterns = [
@@ -359,6 +376,7 @@
         'ПРИ ', 'МОЖНО', 'РАЗРЕШЕНО', 'КОЛИЧЕСТВО', 'ВВЕДИТЕ', 'ОСТАЛОСЬ', 'СТОИМОСТЬ',
         'ИГРОК ПОКУПАЕТ', 'ИГРОК ПРОДА', 'У ВАС В НАЛИЧИИ', 'В НАЛИЧИИ', 'ПОДРОБНЕЕ', 'ПРЕДУПРЕЖДЕНИЕ',
         'ПЕРЕНОС', 'ПРИМЕНЁН ПЕРЕНОС', 'ПРИМЕНЕН ПЕРЕНОС',
+        'ХАРАКТЕРИСТИК', 'ПРИМЕНЕНЫ ВСЕ', 'У ДАННОГО',
       ];
       return keys.some((k) => upper.includes(k));
     }
@@ -407,6 +425,7 @@
       const priceMatch = priceLine && (priceLine[1].match(/([\d.,\s]+)/) || [null, priceLine[1]]);
       const price = priceLine ? moneyFromText(priceMatch && priceMatch[1]) : null;
       const transferFrom = extractTransferFrom(text);
+      const traitsFrom = extractTraitsFrom(text);
 
       return {
         kind,
@@ -414,13 +433,15 @@
         count: Math.floor(count),
         price,
         transferFrom,
+        traitsFrom,
         slot: raw.slot,
         raw,
       };
     }
 
     function itemStackKey(item) {
-      return cleanKey(item.name) + '\0' + String(item.price ?? '') + '\0' + cleanKey(item.transferFrom || '');
+      return cleanKey(item.name) + '\0' + String(item.price ?? '')
+        + '\0' + cleanKey(item.transferFrom || '') + '\0' + cleanKey(item.traitsFrom || '');
     }
 
     function stackItems(items) {
@@ -465,14 +486,21 @@
       return `обновлено ${d} д. назад`;
     }
 
+    function renderItemNote(label, value) {
+      if (!value) return '';
+      const text = `${label}: ${value}`;
+      return `<div class="item-transfer" title="${esc(text)}">${esc(text)}</div>`;
+    }
+
     function renderItemCard(item) {
-      const transfer = item.transferFrom
-        ? `<div class="item-transfer" title="перенос с: ${esc(item.transferFrom)}">перенос с: ${esc(item.transferFrom)}</div>`
-        : '';
+      const notes = [
+        renderItemNote('перенос с', item.transferFrom),
+        renderItemNote('характеристики с', item.traitsFrom),
+      ].join('');
       return `
         <article class="item-card">
           <div class="item-name" title="${esc(item.name)}">${esc(item.name)}</div>
-          ${transfer}
+          ${notes}
           <div class="item-price">${esc(fmtMoney(item.price))}</div>
           <div class="item-count">x${esc(item.count)}</div>
         </article>
