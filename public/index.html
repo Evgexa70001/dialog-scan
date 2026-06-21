@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VP Dialog Scan Debug</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0f1115;
+      --panel: #171a21;
+      --border: #2a3140;
+      --text: #e8ecf3;
+      --muted: #9aa4b2;
+      --accent: #5b8cff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font: 14px/1.45 system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+    header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+    }
+    h1 { margin: 0; font-size: 18px; }
+    .meta { color: var(--muted); font-size: 12px; }
+    main { padding: 20px; }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 12px;
+    }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px;
+      cursor: pointer;
+      transition: border-color .15s, transform .15s;
+    }
+    .card:hover { border-color: var(--accent); transform: translateY(-1px); }
+    .card.active { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+    .shop { font-size: 20px; font-weight: 700; }
+    .nick { margin-top: 6px; }
+    .sub { margin-top: 8px; color: var(--muted); font-size: 12px; }
+    .detail {
+      margin-top: 20px;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px;
+      display: none;
+    }
+    .detail.open { display: block; }
+    .detail h2 { margin: 0 0 12px; font-size: 16px; }
+    .dialog {
+      border-top: 1px solid var(--border);
+      padding: 12px 0;
+    }
+    .dialog:first-of-type { border-top: 0; padding-top: 0; }
+    .dialog-title { font-weight: 600; margin-bottom: 4px; }
+    .dialog-meta { color: var(--muted); font-size: 12px; margin-bottom: 6px; }
+    pre {
+      margin: 0;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font: 12px/1.4 ui-monospace, monospace;
+      color: #d6deea;
+    }
+    .empty, .error {
+      color: var(--muted);
+      padding: 24px;
+      text-align: center;
+      border: 1px dashed var(--border);
+      border-radius: 10px;
+    }
+    .error { color: #ff8f8f; }
+    button {
+      background: var(--panel);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 12px;
+      cursor: pointer;
+    }
+    button:hover { border-color: var(--accent); }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>VP Dialog Scan</h1>
+      <div class="meta" id="status">Загрузка...</div>
+    </div>
+    <button id="refresh" type="button">Обновить</button>
+  </header>
+  <main>
+    <div id="grid" class="grid"></div>
+    <section id="detail" class="detail"></section>
+  </main>
+  <script>
+    const grid = document.getElementById('grid');
+    const detail = document.getElementById('detail');
+    const status = document.getElementById('status');
+    let activeId = null;
+
+    function esc(s) {
+      return String(s ?? '')
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;');
+    }
+
+    function renderCards(items) {
+      if (!items.length) {
+        grid.innerHTML = '<div class="empty">Пока нет сканов. Запусти dialog scan в VP.</div>';
+        detail.classList.remove('open');
+        return;
+      }
+      grid.innerHTML = items.map((item) => `
+        <article class="card${item.id === activeId ? ' active' : ''}" data-id="${esc(item.id)}">
+          <div class="shop">Лавка #${esc(item.shop_id)}</div>
+          <div class="nick">${esc(item.owner_nickname || '—')}</div>
+          <div class="sub">Сервер: ${esc(item.server_id ?? '—')} · Диалогов: ${esc(item.captured)}/${esc(item.queued)}</div>
+          <div class="sub">${esc(item.scanned_at || item.received_at || '')}</div>
+        </article>
+      `).join('');
+      grid.querySelectorAll('.card').forEach((card) => {
+        card.addEventListener('click', () => openDetail(card.dataset.id));
+      });
+    }
+
+    async function openDetail(id) {
+      activeId = id;
+      document.querySelectorAll('.card').forEach((el) => {
+        el.classList.toggle('active', el.dataset.id === id);
+      });
+      detail.classList.add('open');
+      detail.innerHTML = '<div class="empty">Загрузка диалогов...</div>';
+      const res = await fetch(`/api/dialog-scans/${encodeURIComponent(id)}`);
+      const data = await res.json();
+      if (!data.ok || !data.scan) {
+        detail.innerHTML = '<div class="error">Не удалось загрузить скан</div>';
+        return;
+      }
+      const scan = data.scan;
+      const dialogs = Array.isArray(scan.items) ? scan.items : [];
+      detail.innerHTML = `
+        <h2>Лавка #${esc(scan.shop_id)} · ${esc(scan.owner_nickname || '—')}</h2>
+        <div class="sub" style="margin-bottom:12px">
+          Сервер ${esc(scan.server_id ?? '—')} · ${esc(scan.captured)} диалогов · ${esc(scan.scanned_at || scan.received_at || '')}
+        </div>
+        ${dialogs.length ? dialogs.map((d, i) => `
+          <div class="dialog">
+            <div class="dialog-title">${i + 1}. ${esc(d.title || 'Без заголовка')}</div>
+            <div class="dialog-meta">
+              kind=${esc(d.kind)} slot=${esc(d.slot)} style=${esc(d.style)} via=${esc(d.captured_via)}
+            </div>
+            <pre>${esc(d.text || '')}</pre>
+          </div>
+        `).join('') : '<div class="empty">Диалоги пустые</div>'}
+      `;
+    }
+
+    async function loadList() {
+      status.textContent = 'Загрузка...';
+      try {
+        const res = await fetch('/api/dialog-scans');
+        const data = await res.json();
+        if (!data.ok) throw new Error('bad response');
+        status.textContent = `Сканов: ${data.items.length}`;
+        renderCards(data.items);
+        if (activeId && data.items.some((x) => x.id === activeId)) {
+          await openDetail(activeId);
+        } else {
+          activeId = null;
+          detail.classList.remove('open');
+        }
+      } catch (err) {
+        status.textContent = 'Ошибка загрузки';
+        grid.innerHTML = '<div class="error">API недоступен</div>';
+      }
+    }
+
+    document.getElementById('refresh').addEventListener('click', loadList);
+    loadList();
+    setInterval(loadList, 10000);
+  </script>
+</body>
+</html>

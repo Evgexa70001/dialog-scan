@@ -1,0 +1,16 @@
+{
+  "name": "vp-dialog-scan-debug",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Temporary debug viewer for VP dialog scans",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "express": "^4.21.2"
+  }
+}

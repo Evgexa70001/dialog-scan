@@ -1,0 +1,21 @@
+[
+  {
+    "id": "aa681169-74f4-4d56-a850-7c51e66b0fdd",
+    "received_at": "2026-06-21T07:41:57.682Z",
+    "server_id": 1,
+    "shop_id": 42,
+    "owner_nickname": "Test_Player",
+    "scanned_at": "2026-06-21T12:00:00Z",
+    "elapsed_sec": 3.2,
+    "queued": 5,
+    "captured": 5,
+    "items": [
+      {
+        "kind": "sell",
+        "slot": 1,
+        "title": "Test",
+        "text": "Hello dialog"
+      }
+    ]
+  }
+]
