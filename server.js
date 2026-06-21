@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const express = require('express');
+const { parseScanItems, countParsedKinds } = require('./lib/parse-dialog-items');
 
 const PORT = Number(process.env.PORT || 3000);
 const INGEST_SECRET = String(process.env.INGEST_SECRET || '').trim();
@@ -38,11 +39,31 @@ function shopKey(serverId, shopId) {
   return `${Number(serverId) || 0}:${Number(shopId)}`;
 }
 
+function normalizeOwner(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function ownerKey(serverId, ownerNickname) {
+  const nick = normalizeOwner(ownerNickname);
+  if (!nick) return null;
+  return `${Number(serverId) || 0}:nick:${nick}`;
+}
+
 function upsertScan(scans, scan) {
-  const key = shopKey(scan.server_id, scan.shop_id);
-  const existing = scans.find((item) => shopKey(item.server_id, item.shop_id) === key);
+  const shopKeyVal = shopKey(scan.server_id, scan.shop_id);
+  const ownerKeyVal = ownerKey(scan.server_id, scan.owner_nickname);
+
+  let existing = scans.find((item) => shopKey(item.server_id, item.shop_id) === shopKeyVal);
+  if (!existing && ownerKeyVal) {
+    existing = scans.find((item) => ownerKey(item.server_id, item.owner_nickname) === ownerKeyVal);
+  }
   if (existing) scan.id = existing.id;
-  const rest = scans.filter((item) => shopKey(item.server_id, item.shop_id) !== key);
+
+  const rest = scans.filter((item) => {
+    if (shopKey(item.server_id, item.shop_id) === shopKeyVal) return false;
+    if (ownerKeyVal && ownerKey(item.server_id, item.owner_nickname) === ownerKeyVal) return false;
+    return true;
+  });
   rest.unshift(scan);
   if (rest.length > MAX_SCANS) rest.length = MAX_SCANS;
   return { scans: rest, updated: Boolean(existing) };
@@ -51,7 +72,7 @@ function upsertScan(scans, scan) {
 function compactScans(scans) {
   const latest = new Map();
   for (const scan of scans) {
-    const key = shopKey(scan.server_id, scan.shop_id);
+    const key = ownerKey(scan.server_id, scan.owner_nickname) || shopKey(scan.server_id, scan.shop_id);
     const prev = latest.get(key);
     if (!prev || String(scan.received_at).localeCompare(String(prev.received_at)) >= 0) {
       latest.set(key, scan);
@@ -69,9 +90,12 @@ function authOk(req) {
   return token === INGEST_SECRET;
 }
 
-function countByKind(items) {
+function countByKind(scan) {
+  const parsed = Array.isArray(scan.parsed_items) ? scan.parsed_items : null;
+  if (parsed) return countParsedKinds(parsed);
   let sell = 0;
   let buy = 0;
+  const items = scan.items;
   if (!Array.isArray(items)) return { sell, buy };
   for (const item of items) {
     if (item.kind === 'sell') sell += 1;
@@ -80,8 +104,17 @@ function countByKind(items) {
   return { sell, buy };
 }
 
+function ensureParsedScan(scan) {
+  if (!scan || typeof scan !== 'object') return scan;
+  if (!Array.isArray(scan.parsed_items) || scan.parsed_items.length === 0) {
+    scan.parsed_items = parseScanItems(scan.items);
+  }
+  return scan;
+}
+
 function summary(scan) {
-  const counts = countByKind(scan.items);
+  ensureParsedScan(scan);
+  const counts = countByKind(scan);
   return {
     id: scan.id,
     server_id: scan.server_id,
@@ -109,7 +142,7 @@ app.get('/api/dialog-scans', (_req, res) => {
 app.get('/api/dialog-scans/:id', (req, res) => {
   const scan = readScans().find((item) => item.id === req.params.id);
   if (!scan) return res.status(404).json({ ok: false, error: 'not found' });
-  res.json({ ok: true, scan });
+  res.json({ ok: true, scan: ensureParsedScan({ ...scan }) });
 });
 
 app.post('/api/dialog-scans', (req, res) => {
@@ -144,6 +177,7 @@ app.post('/api/dialog-scans', (req, res) => {
     captured: Number(body.captured) || 0,
     items: Array.isArray(body.items) ? body.items : [],
   };
+  scan.parsed_items = parseScanItems(scan.items);
 
   const { scans, updated } = upsertScan(readScans(), scan);
   writeScans(scans);
@@ -161,11 +195,19 @@ app.post('/api/dialog-scans', (req, res) => {
 
 app.listen(PORT, () => {
   ensureStore();
-  const raw = readScans();
+  let raw = readScans();
   const compact = compactScans(raw);
-  if (compact.length !== raw.length) {
-    writeScans(compact);
-    console.log('[dialog-scan-debug] compacted scans %s -> %s', raw.length, compact.length);
+  let changed = compact.length !== raw.length;
+  raw = compact;
+  for (const scan of raw) {
+    if (!Array.isArray(scan.parsed_items) || scan.parsed_items.length === 0) {
+      scan.parsed_items = parseScanItems(scan.items);
+      changed = true;
+    }
+  }
+  if (changed) {
+    writeScans(raw);
+    console.log('[dialog-scan-debug] stored scans=%s (compact/migrate parsed_items)', raw.length);
   }
   console.log(`[dialog-scan-debug] listening on :${PORT}`);
   if (!INGEST_SECRET) {

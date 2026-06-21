@@ -500,9 +500,11 @@
     }
 
     function renderItemCard(item) {
+      const transferFrom = item.transferFrom ?? item.transfer_from;
+      const traitsFrom = item.traitsFrom ?? item.traits_from;
       const notes = [
-        renderItemNote('перенос с', item.transferFrom),
-        renderItemNote('характеристики с', item.traitsFrom),
+        renderItemNote('перенос с', transferFrom),
+        renderItemNote('характеристики с', traitsFrom),
       ].join('');
       return `
         <article class="item-card">
@@ -536,9 +538,22 @@
       `;
     }
 
+    function splitFromParsed(parsed) {
+      const sell = [];
+      const buy = [];
+      for (const item of parsed) {
+        if (item.kind === 'sell') sell.push(item);
+        else if (item.kind === 'buy') buy.push(item);
+      }
+      return { sell, buy };
+    }
+
     function renderShopDetail(scan) {
       const items = Array.isArray(scan.items) ? scan.items : [];
-      const { sell, buy } = splitShopItems(items);
+      const parsed = Array.isArray(scan.parsed_items) && scan.parsed_items.length
+        ? scan.parsed_items
+        : null;
+      const { sell, buy } = parsed ? splitFromParsed(parsed) : splitShopItems(items);
       const when = timeAgo(scan.received_at) || esc(scan.scanned_at || scan.received_at || '');
       const hasParsed = sell.length || buy.length;
 
@@ -596,6 +611,22 @@
       return parts.join('');
     }
 
+    function dedupeScansByOwner(items) {
+      const map = new Map();
+      for (const item of items) {
+        const nick = String(item.owner_nickname || '').trim().toLowerCase();
+        const key = nick
+          ? `${Number(item.server_id) || 0}:nick:${nick}`
+          : `${Number(item.server_id) || 0}:shop:${item.shop_id}`;
+        const prev = map.get(key);
+        if (!prev || String(item.received_at || '').localeCompare(String(prev.received_at || '')) >= 0) {
+          map.set(key, item);
+        }
+      }
+      return Array.from(map.values())
+        .sort((a, b) => String(b.received_at || '').localeCompare(String(a.received_at || '')));
+    }
+
     function renderCards(items) {
       if (!items.length) {
         grid.innerHTML = '<div class="empty">Пока нет сканов. Запусти dialog scan в VP.</div>';
@@ -640,9 +671,10 @@
         const res = await fetch('/api/dialog-scans');
         const data = await res.json();
         if (!data.ok) throw new Error('bad response');
-        status.textContent = `Сканов: ${data.items.length}`;
-        renderCards(data.items);
-        if (activeId && data.items.some((x) => x.id === activeId)) {
+        const items = dedupeScansByOwner(data.items);
+        status.textContent = `Сканов: ${items.length}`;
+        renderCards(items);
+        if (activeId && items.some((x) => x.id === activeId)) {
           await openDetail(activeId);
         } else {
           activeId = null;
