@@ -1,34 +1,43 @@
 [
   {
-    "id": "1",
-    "received_at": "2026-06-21T08:01:20Z",
+    "id": "demo",
+    "received_at": "2026-06-21T10:00:00.000Z",
     "server_id": 8,
-    "shop_id": 95,
-    "owner_nickname": "Cesare_Castro",
+    "shop_id": 2,
+    "owner_nickname": "[04]Fortuna_Atsuka",
+    "scanned_at": "2026-06-21T10:00:00Z",
+    "elapsed_sec": 12,
+    "queued": 4,
+    "captured": 4,
     "items": [
       {
-        "text": "old"
-      }
-    ]
-  },
-  {
-    "id": "2",
-    "received_at": "2026-06-21T08:01:22Z",
-    "server_id": 8,
-    "shop_id": 95,
-    "owner_nickname": "Cesare_Castro",
-    "items": [
+        "kind": "sell",
+        "slot": 1,
+        "title": "Продажа предмета",
+        "button1": "Продать",
+        "text": "Предмет: {FFFFFF}Лён{FFFFFF}\nВ наличии: 19431 шт\nСтоимость: 60$"
+      },
       {
-        "text": "new"
+        "kind": "sell",
+        "slot": 2,
+        "title": "Продажа предмета",
+        "button1": "Продать",
+        "text": "Предмет: {FFFFFF}Rare Box Blue{FFFFFF}\nВ наличии: 48 шт\nСтоимость: 1 111$"
+      },
+      {
+        "kind": "buy",
+        "slot": 1,
+        "title": "Покупка предмета",
+        "button1": "Купить",
+        "text": "Предмет: {FFFFFF}Железо{FFFFFF}\nИгрок покупает: 500 шт\nСтоимость: 25$"
+      },
+      {
+        "kind": "buy",
+        "slot": 2,
+        "title": "Покупка предмета",
+        "button1": "Купить",
+        "text": "Предмет: {FFFFFF}Медь{FFFFFF}\nИгрок покупает: 100 шт\nСтоимость: 10$"
       }
     ]
-  },
-  {
-    "id": "3",
-    "received_at": "2026-06-21T08:00:00Z",
-    "server_id": 8,
-    "shop_id": 96,
-    "owner_nickname": "Other",
-    "items": []
   }
 ]

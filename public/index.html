@@ -7,12 +7,15 @@
   <style>
     :root {
       color-scheme: dark;
-      --bg: #0f1115;
-      --panel: #171a21;
+      --bg: #0b0c0f;
+      --panel: #14161c;
+      --card: #1a1d25;
       --border: #2a3140;
-      --text: #e8ecf3;
-      --muted: #9aa4b2;
+      --text: #eef1f6;
+      --muted: #8b95a7;
       --accent: #5b8cff;
+      --sell: #6ee7a8;
+      --buy: #7eb8ff;
     }
     * { box-sizing: border-box; }
     body {
@@ -31,7 +34,7 @@
     }
     h1 { margin: 0; font-size: 18px; }
     .meta { color: var(--muted); font-size: 12px; }
-    main { padding: 20px; }
+    main { padding: 20px; max-width: 1200px; margin: 0 auto; }
     .grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
@@ -50,16 +53,108 @@
     .shop { font-size: 20px; font-weight: 700; }
     .nick { margin-top: 6px; }
     .sub { margin-top: 8px; color: var(--muted); font-size: 12px; }
+    .badges { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+    .badge {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 999px;
+      letter-spacing: .03em;
+    }
+    .badge.sell { color: var(--sell); background: rgba(110, 231, 168, .12); }
+    .badge.buy { color: var(--buy); background: rgba(126, 184, 255, .12); }
     .detail {
       margin-top: 20px;
       background: var(--panel);
       border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 16px;
+      border-radius: 12px;
+      padding: 20px;
       display: none;
     }
     .detail.open { display: block; }
-    .detail h2 { margin: 0 0 12px; font-size: 16px; }
+    .shop-head { margin-bottom: 20px; }
+    .shop-head .owner { font-size: 22px; font-weight: 700; margin: 0 0 6px; }
+    .shop-head .line { color: var(--muted); font-size: 13px; margin: 0 0 4px; }
+    .shop-head .line .sid { color: var(--accent); }
+    .section { margin-top: 24px; }
+    .section:first-of-type { margin-top: 0; }
+    .section-title {
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: .08em;
+      margin: 0 0 14px;
+    }
+    .section-title.sell { color: var(--sell); }
+    .section-title.buy { color: var(--buy); }
+    .items-grid {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: 10px;
+    }
+    @media (max-width: 1100px) { .items-grid { grid-template-columns: repeat(4, 1fr); } }
+    @media (max-width: 760px) { .items-grid { grid-template-columns: repeat(3, 1fr); } }
+    @media (max-width: 520px) { .items-grid { grid-template-columns: repeat(2, 1fr); } }
+    .item-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 10px 10px;
+      min-height: 92px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      gap: 6px;
+    }
+    .item-name {
+      font-size: 12px;
+      line-height: 1.25;
+      width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .item-price { font-size: 14px; font-weight: 700; margin-top: auto; }
+    .item-count { font-size: 11px; color: var(--muted); }
+    .pager {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 14px;
+    }
+    .pager button {
+      width: 32px;
+      height: 32px;
+      padding: 0;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+    }
+    .pager button:disabled { opacity: .35; cursor: default; }
+    .pager span { color: var(--muted); font-size: 13px; min-width: 48px; text-align: center; }
+    .empty, .error {
+      color: var(--muted);
+      padding: 24px;
+      text-align: center;
+      border: 1px dashed var(--border);
+      border-radius: 10px;
+    }
+    .error { color: #ff8f8f; }
+    .debug-toggle {
+      margin-top: 20px;
+      font-size: 12px;
+      color: var(--muted);
+      cursor: pointer;
+      user-select: none;
+    }
+    .debug-toggle:hover { color: var(--text); }
+    .debug-panel {
+      display: none;
+      margin-top: 12px;
+      border-top: 1px solid var(--border);
+      padding-top: 12px;
+    }
+    .debug-panel.open { display: block; }
     .dialog {
       border-top: 1px solid var(--border);
       padding: 12px 0;
@@ -74,14 +169,6 @@
       font: 12px/1.4 ui-monospace, monospace;
       color: #d6deea;
     }
-    .empty, .error {
-      color: var(--muted);
-      padding: 24px;
-      text-align: center;
-      border: 1px dashed var(--border);
-      border-radius: 10px;
-    }
-    .error { color: #ff8f8f; }
     button {
       background: var(--panel);
       color: var(--text);
@@ -90,7 +177,7 @@
       padding: 8px 12px;
       cursor: pointer;
     }
-    button:hover { border-color: var(--accent); }
+    button:hover:not(:disabled) { border-color: var(--accent); }
   </style>
 </head>
 <body>
@@ -109,13 +196,317 @@
     const grid = document.getElementById('grid');
     const detail = document.getElementById('detail');
     const status = document.getElementById('status');
+    const PAGE_SIZE = 30;
     let activeId = null;
+    const sectionPages = { sell: 0, buy: 0 };
 
     function esc(s) {
       return String(s ?? '')
         .replaceAll('&', '&amp;')
         .replaceAll('<', '&lt;')
         .replaceAll('>', '&gt;');
+    }
+
+    function stripColors(value) {
+      return String(value ?? '').replace(/\{[0-9A-Fa-f]{6}\}/g, '');
+    }
+
+    function cleanKey(value) {
+      return stripColors(value).toUpperCase().replace(/\s+/g, ' ').trim();
+    }
+
+    function moneyFromText(value) {
+      const digits = String(value ?? '').replace(/\D/g, '');
+      if (!digits) return null;
+      const n = Number(digits);
+      return Number.isFinite(n) ? n : null;
+    }
+
+    function fmtMoney(value) {
+      if (value == null || !Number.isFinite(value)) return '—';
+      return value.toLocaleString('ru-RU').replace(/,/g, ' ') + '$';
+    }
+
+    function trimDialog(value) {
+      const s = String(value ?? '').trim();
+      return s || null;
+    }
+
+    function dialogItemName(value) {
+      let name = stripColors(value).trim();
+      const m = name.match(/^([^:]+):\s*(.+)$/);
+      if (m) {
+        const key = cleanKey(m[1]);
+        if (key === 'ПРЕДМЕТ' || key === 'НАЗВАНИЕ' || key === 'ТОВАР') {
+          name = m[2].trim();
+        }
+      }
+      return name;
+    }
+
+    function sanitizeName(name) {
+      name = stripColors(name).replace(/[\x00-\x1f\x7f]/g, ' ').replace(/\s+/g, ' ').trim();
+      if (!name) return null;
+      return name.slice(0, 200);
+    }
+
+    function extractDialogName(text) {
+      const plain = stripColors(text).replace(/\./g, '');
+      const patterns = [
+        /Легендарный предмет:\s*\{[0-9A-Fa-f]{6}\}(.+?)\{[0-9A-Fa-f]{6}\}/,
+        /Легендарный предмет:\s*\{[0-9A-Fa-f]{6}\}([^{]+)/,
+        /Легендарный аксессуар:\s*\{[0-9A-Fa-f]{6}\}(.+?)\{[0-9A-Fa-f]{6}\}/,
+        /Легендарная одежда:\s*\{[0-9A-Fa-f]{6}\}(.+?)\{[0-9A-Fa-f]{6}\}/,
+        /Коллекционный аксессуар:\s*\{[0-9A-Fa-f]{6}\}(.+?)\{[0-9A-Fa-f]{6}\}/,
+        /Предмет:\s*\{[0-9A-Fa-f]{6}\}(.+?)\{[0-9A-Fa-f]{6}\}/,
+        /Аксессуар:\s*\{[0-9A-Fa-f]{6}\}(.+?)\{[0-9A-Fa-f]{6}\}/,
+        /Скин:\s*\{[0-9A-Fa-f]{6}\}(.+?)\{[0-9A-Fa-f]{6}\}/,
+        /Скин:\s*\{[0-9A-Fa-f]{6}\}([^{}\n]+)/,
+        /Нашивка:\s*\{[0-9A-Fa-f]{6}\}(.+?)\{[0-9A-Fa-f]{6}\}/,
+        /\{FDCF28\}(.+?)\{FFFFFF\}/,
+        /\{FF332C\}(.+?)\{FFFFFF\}/,
+      ];
+      for (const re of patterns) {
+        const m = plain.match(re);
+        const part = trimDialog(m && m[1]);
+        if (!part || part.length <= 1) continue;
+        if (part.includes('Стоимость') || part.includes('Игрок')) continue;
+        if (plain.includes('Легендарный предмет') && !part.includes('Легендарный предмет')) {
+          return 'Легендарный предмет: ' + part;
+        }
+        if (plain.includes('Скин') && !/^Скин:/.test(part)) {
+          return 'Скин: ' + part;
+        }
+        return part;
+      }
+      return null;
+    }
+
+    function isItemDialog(title, text) {
+      title = String(title ?? '');
+      text = String(text ?? '');
+      if (title.includes('Продажа предмета') || title.includes('Покупка предмета')) return true;
+      const titleUpper = cleanKey(title);
+      if (titleUpper.includes('ПРОДАЖА ПРЕДМЕТА') || titleUpper.includes('ПОКУПКА ПРЕДМЕТА')) return true;
+      if (text.includes('Стоимость:') && (
+        text.includes('Предмет:') || text.includes('Аксессуар:') || text.includes('Скин:') ||
+        text.includes('Легендарный предмет:') || text.includes('Легендарный аксессуар:') ||
+        text.includes('Легендарная одежда:') || text.includes('Коллекционный аксессуар:')
+      )) return true;
+      return false;
+    }
+
+    function extractAmounts(text) {
+      const plain = stripColors(text).replace(/\r/g, '').replace(/,/g, '').replace(/\./g, '').replace(/\{[0-9A-Fa-f]{6}\}/g, '');
+      const kol = (
+        plain.match(/В\s+наличии:\s*(\d+)/i) ||
+        plain.match(/В\s+наличии:[^\d]*(\d+)\s*шт/i) ||
+        plain.match(/Продает[^\d]*(\d+)\s*шт/i) ||
+        plain.match(/Количество:[^\d]*(\d+)\s*шт/i)
+      );
+      const pok = (
+        plain.match(/[Ии]грок[^\d]*покупает:\s*(\d+)/) ||
+        plain.match(/[Ии]грок[^\d]*покупает:[^\d]*(\d+)\s*шт/i) ||
+        plain.match(/[Пп]окупает:\s*(\d+)\s*шт/i) ||
+        plain.match(/[Пп]окупает[^\d]*(\d+)\s*шт/i) ||
+        plain.match(/Куплю[^\d]*(\d+)\s*шт/i) ||
+        plain.match(/Скупает[^\d]*(\d+)\s*шт/i)
+      );
+      return [Number(kol && kol[1]) || 1, Number(pok && pok[1]) || 1];
+    }
+
+    function dialogCount(text, title, kind, button1) {
+      const [kol, pok] = extractAmounts(text);
+      title = String(title ?? '');
+      if (title.includes('Покупка предмета')) return kol;
+      if (title.includes('Продажа предмета')) return pok;
+      if (kind === 'sell') return kol;
+      if (kind === 'buy') return pok;
+      button1 = String(button1 ?? '');
+      if (button1.includes('Купить')) return kol;
+      if (button1.includes('Продать')) return pok;
+      return Math.max(kol, pok);
+    }
+
+    function lineLooksLikeMeta(upper) {
+      const keys = [
+        'ПРИ ', 'МОЖНО', 'РАЗРЕШЕНО', 'КОЛИЧЕСТВО', 'ВВЕДИТЕ', 'ОСТАЛОСЬ', 'СТОИМОСТЬ',
+        'ИГРОК ПОКУПАЕТ', 'ИГРОК ПРОДА', 'У ВАС В НАЛИЧИИ', 'В НАЛИЧИИ', 'ПОДРОБНЕЕ', 'ПРЕДУПРЕЖДЕНИЕ',
+      ];
+      return keys.some((k) => upper.includes(k));
+    }
+
+    function parseDialogItem(raw) {
+      if (!raw || typeof raw !== 'object') return null;
+      const title = raw.title ?? '';
+      const text = raw.text ?? '';
+      const button1 = raw.button1 ?? '';
+      if (!isItemDialog(title, text)) return null;
+
+      const clean = stripColors(text).replace(/\r/g, '');
+      const upper = cleanKey(clean);
+      const titleUpper = cleanKey(title);
+      const titleRaw = String(title);
+      const titleIsBuy = titleUpper.includes('ПОКУПКА ПРЕДМЕТА') || titleRaw.includes('Покупка предмета');
+      const titleIsSell = titleUpper.includes('ПРОДАЖА ПРЕДМЕТА') || titleRaw.includes('Продажа предмета');
+
+      let kind = raw.kind === 'buy' || raw.kind === 'sell' ? raw.kind : null;
+      if (!kind) {
+        if (titleIsBuy) kind = 'sell';
+        else if (titleIsSell) kind = 'buy';
+        else if (upper.includes('ИГРОК ПОКУПАЕТ')) kind = 'buy';
+        else if (upper.includes('ИГРОК ПРОДА')) kind = 'sell';
+        else if (upper.includes('В НАЛИЧИИ')) kind = titleIsBuy ? 'sell' : 'buy';
+      }
+
+      const count = dialogCount(clean, title, kind, button1);
+      if (!kind || !count || count <= 0) return null;
+
+      let name = extractDialogName(text);
+      if (!name) {
+        for (const line of clean.split('\n')) {
+          const value = dialogItemName(line);
+          const valueUpper = cleanKey(value);
+          if (value && !lineLooksLikeMeta(valueUpper)) {
+            name = value;
+            break;
+          }
+        }
+      }
+      name = sanitizeName(name);
+      if (!name) return null;
+
+      const priceLine = clean.match(/[Сс]тоимость:\s*([^\n]+)/);
+      const priceMatch = priceLine && (priceLine[1].match(/([\d.,\s]+)/) || [null, priceLine[1]]);
+      const price = priceLine ? moneyFromText(priceMatch && priceMatch[1]) : null;
+
+      return {
+        kind,
+        name,
+        count: Math.floor(count),
+        price,
+        slot: raw.slot,
+        raw,
+      };
+    }
+
+    function splitShopItems(items) {
+      const sell = [];
+      const buy = [];
+      for (const raw of items) {
+        const parsed = parseDialogItem(raw);
+        if (!parsed) continue;
+        if (parsed.kind === 'sell') sell.push(parsed);
+        else if (parsed.kind === 'buy') buy.push(parsed);
+      }
+      sell.sort((a, b) => (Number(a.slot) || 0) - (Number(b.slot) || 0));
+      buy.sort((a, b) => (Number(a.slot) || 0) - (Number(b.slot) || 0));
+      return { sell, buy };
+    }
+
+    function timeAgo(iso) {
+      if (!iso) return '';
+      const ms = Date.now() - new Date(iso).getTime();
+      if (!Number.isFinite(ms) || ms < 0) return '';
+      const min = Math.floor(ms / 60000);
+      if (min < 1) return 'обновлено только что';
+      if (min < 60) return `обновлено ${min} мин. назад`;
+      const h = Math.floor(min / 60);
+      if (h < 24) return `обновлено ${h} ч. назад`;
+      const d = Math.floor(h / 24);
+      return `обновлено ${d} д. назад`;
+    }
+
+    function renderItemCard(item) {
+      return `
+        <article class="item-card">
+          <div class="item-name" title="${esc(item.name)}">${esc(item.name)}</div>
+          <div class="item-price">${esc(fmtMoney(item.price))}</div>
+          <div class="item-count">x${esc(item.count)}</div>
+        </article>
+      `;
+    }
+
+    function renderSection(kind, items, page) {
+      if (!items.length) return '';
+      const label = kind === 'sell' ? 'ПРОДАЖА' : 'СКУПКА';
+      const totalPages = Math.max(1, Math.ceil(items.length / PAGE_SIZE));
+      const safePage = Math.min(Math.max(0, page), totalPages - 1);
+      const slice = items.slice(safePage * PAGE_SIZE, safePage * PAGE_SIZE + PAGE_SIZE);
+      const pager = totalPages > 1 ? `
+        <div class="pager" data-kind="${kind}">
+          <button type="button" data-action="prev" data-kind="${kind}" ${safePage <= 0 ? 'disabled' : ''} aria-label="Назад">‹</button>
+          <span>${safePage + 1} / ${totalPages}</span>
+          <button type="button" data-action="next" data-kind="${kind}" ${safePage >= totalPages - 1 ? 'disabled' : ''} aria-label="Вперёд">›</button>
+        </div>
+      ` : '';
+      return `
+        <section class="section">
+          <h3 class="section-title ${kind}">${label} (${items.length})</h3>
+          <div class="items-grid">${slice.map(renderItemCard).join('')}</div>
+          ${pager}
+        </section>
+      `;
+    }
+
+    function renderShopDetail(scan) {
+      const items = Array.isArray(scan.items) ? scan.items : [];
+      const { sell, buy } = splitShopItems(items);
+      const when = timeAgo(scan.received_at) || esc(scan.scanned_at || scan.received_at || '');
+      const hasParsed = sell.length || buy.length;
+
+      return `
+        <div class="shop-head">
+          <h2 class="owner">${esc(scan.owner_nickname || '—')}</h2>
+          <p class="line">
+            Сервер <span class="sid">[${esc(scan.server_id ?? '—')}]</span>
+            · ID лавки: ${esc(scan.shop_id)}
+          </p>
+          <p class="line">${when}</p>
+          <p class="line">Диалогов: ${esc(scan.captured)}/${esc(scan.queued)} · ${esc(scan.scanned_at || scan.received_at || '')}</p>
+        </div>
+        ${hasParsed ? `
+          ${renderSection('sell', sell, sectionPages.sell)}
+          ${renderSection('buy', buy, sectionPages.buy)}
+        ` : '<div class="empty">Не удалось разобрать предметы из диалогов</div>'}
+        <div class="debug-toggle" id="debugToggle">Показать сырые диалоги (${items.length})</div>
+        <div class="debug-panel" id="debugPanel">
+          ${items.length ? items.map((d, i) => `
+            <div class="dialog">
+              <div class="dialog-title">${i + 1}. ${esc(d.title || 'Без заголовка')}</div>
+              <div class="dialog-meta">
+                kind=${esc(d.kind)} slot=${esc(d.slot)} style=${esc(d.style)} via=${esc(d.captured_via)}
+              </div>
+              <pre>${esc(d.text || '')}</pre>
+            </div>
+          `).join('') : '<div class="empty">Диалоги пустые</div>'}
+        </div>
+      `;
+    }
+
+    function bindDetailEvents(scan) {
+      detail.querySelector('#debugToggle')?.addEventListener('click', () => {
+        detail.querySelector('#debugPanel')?.classList.toggle('open');
+      });
+      detail.querySelectorAll('.pager button[data-action]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const kind = btn.dataset.kind;
+          const action = btn.dataset.action;
+          if (action === 'prev') sectionPages[kind] = Math.max(0, (sectionPages[kind] || 0) - 1);
+          if (action === 'next') sectionPages[kind] = (sectionPages[kind] || 0) + 1;
+          detail.innerHTML = renderShopDetail(scan);
+          bindDetailEvents(scan);
+        });
+      });
+    }
+
+    function scanBadges(item) {
+      const sell = Number(item.sell_count) || 0;
+      const buy = Number(item.buy_count) || 0;
+      const parts = [];
+      if (sell) parts.push(`<span class="badge sell">Продажа ${sell}</span>`);
+      if (buy) parts.push(`<span class="badge buy">Скупка ${buy}</span>`);
+      return parts.join('');
     }
 
     function renderCards(items) {
@@ -128,8 +519,8 @@
         <article class="card${item.id === activeId ? ' active' : ''}" data-id="${esc(item.id)}">
           <div class="shop">Лавка #${esc(item.shop_id)}</div>
           <div class="nick">${esc(item.owner_nickname || '—')}</div>
-          <div class="sub">Сервер: ${esc(item.server_id ?? '—')} · Диалогов: ${esc(item.captured)}/${esc(item.queued)}</div>
-          <div class="sub">${esc(item.scanned_at || item.received_at || '')}</div>
+          <div class="badges">${scanBadges(item)}</div>
+          <div class="sub">Сервер: ${esc(item.server_id ?? '—')} · ${esc(timeAgo(item.received_at) || item.scanned_at || item.received_at || '')}</div>
         </article>
       `).join('');
       grid.querySelectorAll('.card').forEach((card) => {
@@ -139,34 +530,21 @@
 
     async function openDetail(id) {
       activeId = id;
+      sectionPages.sell = 0;
+      sectionPages.buy = 0;
       document.querySelectorAll('.card').forEach((el) => {
         el.classList.toggle('active', el.dataset.id === id);
       });
       detail.classList.add('open');
-      detail.innerHTML = '<div class="empty">Загрузка диалогов...</div>';
+      detail.innerHTML = '<div class="empty">Загрузка...</div>';
       const res = await fetch(`/api/dialog-scans/${encodeURIComponent(id)}`);
       const data = await res.json();
       if (!data.ok || !data.scan) {
         detail.innerHTML = '<div class="error">Не удалось загрузить скан</div>';
         return;
       }
-      const scan = data.scan;
-      const dialogs = Array.isArray(scan.items) ? scan.items : [];
-      detail.innerHTML = `
-        <h2>Лавка #${esc(scan.shop_id)} · ${esc(scan.owner_nickname || '—')}</h2>
-        <div class="sub" style="margin-bottom:12px">
-          Сервер ${esc(scan.server_id ?? '—')} · ${esc(scan.captured)} диалогов · ${esc(scan.scanned_at || scan.received_at || '')}
-        </div>
-        ${dialogs.length ? dialogs.map((d, i) => `
-          <div class="dialog">
-            <div class="dialog-title">${i + 1}. ${esc(d.title || 'Без заголовка')}</div>
-            <div class="dialog-meta">
-              kind=${esc(d.kind)} slot=${esc(d.slot)} style=${esc(d.style)} via=${esc(d.captured_via)}
-            </div>
-            <pre>${esc(d.text || '')}</pre>
-          </div>
-        `).join('') : '<div class="empty">Диалоги пустые</div>'}
-      `;
+      detail.innerHTML = renderShopDetail(data.scan);
+      bindDetailEvents(data.scan);
     }
 
     async function loadList() {
@@ -183,7 +561,7 @@
           activeId = null;
           detail.classList.remove('open');
         }
-      } catch (err) {
+      } catch {
         status.textContent = 'Ошибка загрузки';
         grid.innerHTML = '<div class="error">API недоступен</div>';
       }

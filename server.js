@@ -69,7 +69,19 @@ function authOk(req) {
   return token === INGEST_SECRET;
 }
 
+function countByKind(items) {
+  let sell = 0;
+  let buy = 0;
+  if (!Array.isArray(items)) return { sell, buy };
+  for (const item of items) {
+    if (item.kind === 'sell') sell += 1;
+    else if (item.kind === 'buy') buy += 1;
+  }
+  return { sell, buy };
+}
+
 function summary(scan) {
+  const counts = countByKind(scan.items);
   return {
     id: scan.id,
     server_id: scan.server_id,
@@ -80,6 +92,8 @@ function summary(scan) {
     queued: scan.queued,
     captured: scan.captured,
     received_at: scan.received_at,
+    sell_count: counts.sell,
+    buy_count: counts.buy,
   };
 }
 
