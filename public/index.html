@@ -306,6 +306,13 @@
       return null;
     }
 
+    function resolveItemOrigin(text) {
+      const traitsFrom = extractTraitsFrom(text);
+      if (traitsFrom) return { traitsFrom, transferFrom: null };
+      const transferFrom = extractTransferFrom(text);
+      return { traitsFrom: null, transferFrom: transferFrom || null };
+    }
+
     function extractDialogName(text) {
       const plain = stripColors(text).replace(/\./g, '');
       const patterns = [
@@ -431,16 +438,15 @@
       const priceLine = clean.match(/[Сс]тоимость:\s*([^\n]+)/);
       const priceMatch = priceLine && (priceLine[1].match(/([\d.,\s]+)/) || [null, priceLine[1]]);
       const price = priceLine ? moneyFromText(priceMatch && priceMatch[1]) : null;
-      const transferFrom = extractTransferFrom(text);
-      const traitsFrom = extractTraitsFrom(text);
+      const origin = resolveItemOrigin(text);
 
       return {
         kind,
         name,
         count: Math.floor(count),
         price,
-        transferFrom,
-        traitsFrom,
+        transferFrom: origin.transferFrom,
+        traitsFrom: origin.traitsFrom,
         slot: raw.slot,
         raw,
       };
@@ -448,7 +454,7 @@
 
     function itemStackKey(item) {
       return cleanKey(item.name) + '\0' + String(item.price ?? '')
-        + '\0' + cleanKey(item.transferFrom || '') + '\0' + cleanKey(item.traitsFrom || '');
+        + '\0' + cleanKey(item.traitsFrom || item.transferFrom || '');
     }
 
     function stackItems(items) {
@@ -502,14 +508,15 @@
     function renderItemCard(item) {
       const transferFrom = item.transferFrom ?? item.transfer_from;
       const traitsFrom = item.traitsFrom ?? item.traits_from;
-      const notes = [
-        renderItemNote('перенос с', transferFrom),
-        renderItemNote('характеристики с', traitsFrom),
-      ].join('');
+      const note = traitsFrom
+        ? renderItemNote('характеристики с', traitsFrom)
+        : transferFrom
+          ? renderItemNote('перенос с', transferFrom)
+          : '';
       return `
         <article class="item-card">
           <div class="item-name" title="${esc(item.name)}">${esc(item.name)}</div>
-          ${notes}
+          ${note}
           <div class="item-price">${esc(fmtMoney(item.price))}</div>
           <div class="item-count">x${esc(item.count)}</div>
         </article>
