@@ -106,9 +106,7 @@ function countByKind(scan) {
 
 function ensureParsedScan(scan) {
   if (!scan || typeof scan !== 'object') return scan;
-  if (!Array.isArray(scan.parsed_items) || scan.parsed_items.length === 0) {
-    scan.parsed_items = parseScanItems(scan.items);
-  }
+  scan.parsed_items = parseScanItems(scan.items);
   return scan;
 }
 
@@ -200,8 +198,11 @@ app.listen(PORT, () => {
   let changed = compact.length !== raw.length;
   raw = compact;
   for (const scan of raw) {
-    if (!Array.isArray(scan.parsed_items) || scan.parsed_items.length === 0) {
-      scan.parsed_items = parseScanItems(scan.items);
+    const reparsed = parseScanItems(scan.items);
+    const prev = JSON.stringify(scan.parsed_items || []);
+    const next = JSON.stringify(reparsed);
+    if (prev !== next) {
+      scan.parsed_items = reparsed;
       changed = true;
     }
   }
